@@ -1,155 +1,117 @@
 # api/main.py
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import sys, os
+from src.logic import UserManager, FactManager
 
-# import managers from src
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.logic import UserManager, FactManager, FavoriteManager
-
-# -------------------------------------- App Setup ---------------------------
 app = FastAPI(title="Fun Facts Generator API", version="1.0")
 
-# ------------------------ Allow frontend (streamlit/React) ------------------
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# --------------------------------- Data Models -------------------------------
-class UserCreate(BaseModel):
+# -------------------- Data Models --------------------
+class UserRegister(BaseModel):
     username: str
     email: str
+    password: str
 
-class UserUpdate(BaseModel):
-    username: str = None
-    email: str = None
+class UserLogin(BaseModel):
+    email: str
+    password: str
 
 class FactCreate(BaseModel):
     content: str
     category: str
-    user_id: int = None
+    user_id: str = None
 
 class FactUpdate(BaseModel):
     content: str = None
     category: str = None
 
-class FavoriteCreate(BaseModel):
-    user_id: int
-    fact_id: int
-
-# ------------------------ API Classes ----------------------
-class UserAPI:
-    def __init__(self):
-        self.manager = UserManager()
-
-    def register_routes(self, app: FastAPI):
-        @app.post("/users/")
-        def create_user(user: UserCreate):
-            result = self.manager.add_user(user.username, user.email)
-            if result.get("Success"):
-                return result
-            raise HTTPException(status_code=400, detail=result.get("Message"))
-
-        @app.get("/users/")
-        def list_users():
-            result = self.manager.list_user()
-            return {"success": True, "data": result}
-
-        @app.put("/users/{user_id}")
-        def update_user(user_id: int, user: UserUpdate):
-            result = self.manager.edit_user(user_id, user.username, user.email)
-            if result.get("Success"):
-                return result
-            raise HTTPException(status_code=400, detail=result.get("Message"))
-
-        @app.delete("/users/{user_id}")
-        def delete_user(user_id: int):
-            result = self.manager.remove_user(user_id)
-            if result.get("Success"):
-                return result
-            raise HTTPException(status_code=400, detail=result.get("Message"))
 
 
-class FactAPI:
-    def __init__(self):
-        self.manager = FactManager()
-
-    def register_routes(self, app: FastAPI):
-        @app.post("/facts/")
-        def create_fact(fact: FactCreate):
-            result = self.manager.add_fact(fact.content, fact.category, fact.user_id)
-            if result.get("Success"):
-                return result
-            raise HTTPException(status_code=400, detail=result.get("Message"))
-
-        @app.get("/facts/")
-        def list_facts():
-            result = self.manager.list_facts()
-            return {"success": True, "data": result}
-
-        @app.put("/facts/{fact_id}")
-        def update_fact(fact_id: int, fact: FactUpdate):
-            result = self.manager.edit_fact(fact_id, fact.content, fact.category)
-            if result.get("Success"):
-                return result
-            raise HTTPException(status_code=400, detail=result.get("Message"))
-
-        @app.delete("/facts/{fact_id}")
-        def delete_fact(fact_id: int):
-            result = self.manager.remove_fact(fact_id)
-            if result.get("Success"):
-                return result
-            raise HTTPException(status_code=400, detail=result.get("Message"))
-
-        @app.get("/facts/random/")
-        def random_fact(category: str = None):
-            result = self.manager.random_fact(category)
-            if result.get("Success"):
-                return result
-            raise HTTPException(status_code=404, detail=result.get("Message"))
+# -------------------- Managers --------------------
+user_manager = UserManager()
+fact_manager = FactManager()
 
 
-class FavoriteAPI:
-    def __init__(self):
-        self.manager = FavoriteManager()
+# -------------------- Auth Endpoints --------------------
+@app.post("/auth/register/")
+def register(user: UserRegister):
+    result = user_manager.add_user(user.username, user.email, password=user.password)
+    if result.get("Success"):
+        return result
+    raise HTTPException(status_code=400, detail=result.get("Message"))
 
-    def register_routes(self, app: FastAPI):
-        @app.post("/favorites/")
-        def add_favorite(fav: FavoriteCreate):
-            result = self.manager.add_favorite(fav.user_id, fav.fact_id)
-            if result.get("Success"):
-                return result
-            raise HTTPException(status_code=400, detail=result.get("Message"))
+@app.post("/auth/login/")
+def login(user: UserLogin):
+    db_user_list = user_manager.list_user()
+    db_user = next((u for u in db_user_list if u["email"] == user.email), None)
+    
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-        @app.get("/favorites/{user_id}")
-        def list_favorites(user_id: int):
-            result = self.manager.list_favorites(user_id)
-            return {"success": True, "data": result}
+    if db_user["password_hash"] == user.password:
+        return {"Success": True, "Message": f"Welcome {db_user['username']}", "user_id": db_user["id"]}
 
-        @app.delete("/favorites/{fav_id}")
-        def delete_favorite(fav_id: int):
-            result = self.manager.remove_favorite(fav_id)
-            if result.get("Success"):
-                return result
-            raise HTTPException(status_code=400, detail=result.get("Message"))
+    raise HTTPException(status_code=401, detail="Incorrect password")
 
-# ------------------------ Register all API classes ----------------------
-UserAPI().register_routes(app)
-FactAPI().register_routes(app)
-FavoriteAPI().register_routes(app)
+# -------------------- User Endpoints --------------------
+@app.get("/users/")
+def list_users():
+    return {"success": True, "data": user_manager.list_user()}
 
-# ------------------------ Home ----------------------
+@app.put("/users/{user_id}")
+def update_user(user_id: str, username: str = None, email: str = None, password: str = None):
+    result = user_manager.edit_user(user_id, username, email, password)
+    if result.get("Success"):
+        return result
+    raise HTTPException(status_code=400, detail=result.get("Message"))
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: str):
+    result = user_manager.remove_user(user_id)
+    if result.get("Success"):
+        return result
+    raise HTTPException(status_code=400, detail=result.get("Message"))
+
+# -------------------- Fact Endpoints --------------------
+@app.post("/facts/")
+def create_fact(fact: FactCreate):
+    result = fact_manager.add_fact(fact.content, fact.category, fact.user_id)
+    if result.get("Success"):
+        return result
+    raise HTTPException(status_code=400, detail=result.get("Message"))
+
+@app.get("/facts/")
+def list_facts():
+    return {"success": True, "data": fact_manager.list_facts()}
+
+@app.put("/facts/{fact_id}")
+def update_fact(fact_id: str, fact: FactUpdate):
+    result = fact_manager.edit_fact(fact_id, fact.content, fact.category)
+    if result.get("Success"):
+        return result
+    raise HTTPException(status_code=400, detail=result.get("Message"))
+
+@app.delete("/facts/{fact_id}")
+def delete_fact(fact_id: str):
+    result = fact_manager.remove_fact(fact_id)
+    if result.get("Success"):
+        return result
+    raise HTTPException(status_code=400, detail=result.get("Message"))
+
+@app.get("/facts/random/")
+def random_fact(category: str = None):
+    result = fact_manager.random_fact(category)
+    if result.get("Success"):
+        return result
+    raise HTTPException(status_code=404, detail=result.get("Message"))
+
+
+# -------------------- Home --------------------
 @app.get("/")
 def home():
     return {"message": "Fun Facts Generator API is running!"}
 
-# --------------- run ----------------------------
-if __name__=="__main__":
+# -------------------- Run --------------------
+if __name__ == "_main_":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -1,63 +1,62 @@
-# db.py
+# src/db.py
 
-import os, random
+import os
+import random
 from supabase import create_client
 from dotenv import load_dotenv
 
-# Load environment
 load_dotenv()
-url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_KEY")
-supabase = create_client(url, key)
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ---------------- USERS ----------------
-def add_user(username, email):
-    return supabase.table("users").insert({"username": username, "email": email}).execute().data
+def add_user(username, email, password_hash):
+    return supabase.table("usersdata").insert({
+        "username": username,
+        "email": email,
+        "password_hash": password_hash
+    }).execute().data
 
 def get_users():
-    return supabase.table("users").select("*").execute().data
+    return supabase.table("usersdata").select("*").execute().data
 
-def update_user(user_id, username=None, email=None):
+def get_user_by_email(email):
+    users = supabase.table("usersdata").select("*").eq("email", email).execute().data
+    return users[0] if users else None
+
+def update_user(user_id, username=None, email=None, password_hash=None):
     data = {}
     if username: data["username"] = username
     if email: data["email"] = email
-    return supabase.table("users").update(data).eq("id", user_id).execute().data
+    if password_hash: data["password_hash"] = password_hash
+    return supabase.table("usersdata").update(data).eq("id", user_id).execute().data
 
 def delete_user(user_id):
-    return supabase.table("users").delete().eq("id", user_id).execute().data
-
+    return supabase.table("usersdata").delete().eq("id", user_id).execute().data
 
 # ---------------- FACTS ----------------
 def add_fact(content, category, user_id=None):
-    data = {"content": content, "category": category}
-    if user_id: data["user_id"] = user_id
-    return supabase.table("facts").insert(data).execute().data
+    data = {"fact_text": content, "category": category}
+    if user_id: data["created_by"] = user_id
+    return supabase.table("fun_facts").insert(data).execute().data
 
 def get_facts():
-    return supabase.table("facts").select("*").execute().data
+    return supabase.table("fun_facts").select("*").execute().data
 
 def update_fact(fact_id, content=None, category=None):
     data = {}
-    if content: data["content"] = content
+    if content: data["fact_text"] = content
     if category: data["category"] = category
-    return supabase.table("facts").update(data).eq("id", fact_id).execute().data
+    return supabase.table("fun_facts").update(data).eq("id", fact_id).execute().data
 
 def delete_fact(fact_id):
-    return supabase.table("facts").delete().eq("id", fact_id).execute().data
+    return supabase.table("fun_facts").delete().eq("id", fact_id).execute().data
 
 def get_random_fact(category=None):
-    q = supabase.table("facts").select("*")
+    q = supabase.table("fun_facts").select("*")
     if category: q = q.eq("category", category)
     facts = q.execute().data
     return random.choice(facts) if facts else None
-
-
-# ---------------- FAVORITES ----------------
-def add_favorite(user_id, fact_id):
-    return supabase.table("favorites").insert({"user_id": user_id, "fact_id": fact_id}).execute().data
-
-def get_favorites(user_id):
-    return supabase.table("favorites").select("*").eq("user_id", user_id).execute().data
-
-def delete_favorite(fav_id):
-    return supabase.table("favorites").delete().eq("id", fav_id).execute().data

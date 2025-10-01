@@ -1,5 +1,18 @@
-streamlit>=1.29
-supabase>=2.0.2
-fastapi>=0.104.1
-uvicorn>=0.24.0
-python-dotenv>=1.0.0
+# --- Web Frameworks ---
+fastapi==0.115.2         # Stable FastAPI release
+uvicorn==0.30.6          # Compatible ASGI server
+streamlit==1.37.1        # For optional frontend dashboard
+
+# --- Database / Supabase ---
+supabase==2.5.1          # Latest stable 2.x client
+
+# --- Environment Variables ---
+python-dotenv==1.0.1     # For .env file loading
+
+# --- Data Models ---
+pydantic==2.9.2
+pydantic-settings==2.6.0
+
+# --- Networking Utilities ---
+requests==2.32.3
+typing-extensions>=4.12.2
