@@ -3,7 +3,7 @@
 from src.db import (
     add_user, get_users, get_user_by_email, update_user, delete_user,
     add_fact, get_facts, update_fact, delete_fact, get_random_fact,
-    
+    add_favorite, get_user_favorites
 )
 
 class UserManager:
@@ -56,3 +56,18 @@ class FactManager:
         if fact: return {"Success": True, "Fact": fact}
         return {"Success": False, "Message": "No facts found"}
 
+class FavoriteManager:
+    def add_to_favorites(self, user_id, fact_id):
+        result = add_favorite(user_id, fact_id)
+        if result:
+            return {"Success": True, "Message": "Added to favorites!"}
+        return {"Success": False, "Message": "Already in favorites or invalid"}
+
+    def list_favorites(self, user_id):
+        favs = get_user_favorites(user_id)
+        favorites = []
+        for f in favs:
+            fact = f.get("fun_facts")
+            if fact:
+                favorites.append(fact)
+        return favorites

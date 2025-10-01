@@ -1,8 +1,9 @@
 # api/main.py
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel
 from src.logic import UserManager, FactManager
+from src.db import supabase
 
 app = FastAPI(title="Fun Facts Generator API", version="1.0")
 
@@ -25,12 +26,9 @@ class FactUpdate(BaseModel):
     content: str = None
     category: str = None
 
-
-
 # -------------------- Managers --------------------
 user_manager = UserManager()
 fact_manager = FactManager()
-
 
 # -------------------- Auth Endpoints --------------------
 @app.post("/auth/register/")
@@ -105,13 +103,51 @@ def random_fact(category: str = None):
         return result
     raise HTTPException(status_code=404, detail=result.get("Message"))
 
+# -------------------- Favorites Endpoints --------------------
+@app.post("/favorites/add/")
+def add_favorite(payload: dict = Body(...)):
+    user_id = payload.get("user_id")
+    fact_id = payload.get("fact_id")
+    if not user_id or not fact_id:
+        raise HTTPException(status_code=400, detail="user_id and fact_id are required")
+
+    # Check duplicate
+    existing = supabase.table("user_favorites").select("*") \
+        .eq("user_id", user_id).eq("fact_id", fact_id).execute().data
+    if existing:
+        return {"Success": True, "Message": "Already in favorites"}
+
+    try:
+        supabase.table("user_favorites").insert({
+            "user_id": user_id,
+            "fact_id": fact_id
+        }).execute()
+        return {"Success": True, "Message": "Added to favorites!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/favorites/{user_id}")
+def get_favorites(user_id: str):
+    try:
+        response = supabase.table("user_favorites") \
+            .select("*, fun_facts(*)") \
+            .eq("user_id", user_id).execute()
+
+        favorites = []
+        if response.data:
+            for fav in response.data:
+                fact = fav.get("fun_facts")
+                if fact:
+                    favorites.append({
+                        "id": fact["id"],
+                        "fact_text": fact["fact_text"],
+                        "category": fact.get("category", "")
+                    })
+        return {"favorites": favorites}
+    except Exception as e:
+        return {"favorites": [], "error": str(e)}
 
 # -------------------- Home --------------------
 @app.get("/")
 def home():
     return {"message": "Fun Facts Generator API is running!"}
-
-# -------------------- Run --------------------
-if __name__ == "_main_":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -3,6 +3,7 @@ import requests
 
 BASE_URL = "http://localhost:8000"
 
+# ----------------- Pages -----------------
 def show_home():
     st.title("🎉 Welcome to Fun Facts Generator!")
     st.write("Discover, share, and save amazing facts from around the world.")
@@ -26,11 +27,7 @@ def show_register():
             payload = {"username": username, "email": email, "password": password}
             try:
                 res = requests.post(f"{BASE_URL}/auth/register/", json=payload)
-                try:
-                    res_data = res.json()
-                except Exception:
-                    st.error(f"Registration failed. Status: {res.status_code} Response: {res.text}")
-                    return
+                res_data = res.json()
                 if res_data.get("Success"):
                     st.success(res_data.get("Message", "Account registered successfully! Please log in."))
                     st.session_state['page'] = "Login"
@@ -52,11 +49,7 @@ def show_login():
             payload = {"email": email, "password": password}
             try:
                 res = requests.post(f"{BASE_URL}/auth/login/", json=payload)
-                try:
-                    res_data = res.json()
-                except Exception:
-                    st.error(f"Login failed. Status: {res.status_code} Response: {res.text}")
-                    return
+                res_data = res.json()
                 if res_data.get("Success"):
                     st.session_state["user_id"] = res_data.get("user_id")
                     st.session_state["username"] = res_data.get("Message", "User")
@@ -74,49 +67,40 @@ def show_logout():
     if st.sidebar.button("Logout"):
         st.session_state.clear()  
         st.session_state['page'] = "Home"  
-        st.query_params = {"page": ["home"]}
         st.stop()  
 
-
+# ----------------- Discover Facts -----------------
 def show_discover():
     st.header(f"Discover Fun Facts - Welcome, {st.session_state.get('username','User')}!")
-    # Get categories
+    user_id = st.session_state.get("user_id")
     try:
         res = requests.get(f"{BASE_URL}/facts/")
-        if res.status_code == 200:
-            facts = res.json().get("data", [])
-            categories = sorted(list(set([fact["category"] for fact in facts])))
-        else:
-            categories = []
-            st.error(f"Failed to fetch categories. {res.text}")
+        facts = res.json().get("data", [])
     except Exception as e:
-        st.error(f"Error fetching categories: {e}")
-        categories = []
+        st.error(f"Error fetching facts: {e}")
+        facts = []
 
+    categories = sorted(list(set([fact["category"] for fact in facts]))) if facts else []
     if categories:
         selected_category = st.selectbox("Select a category", categories, key="disc_cat")
-        if st.button("Generate Fun Fact", key="gen_fact_btn"):
-            params = {"category": selected_category}
-            try:
-                resp = requests.get(f"{BASE_URL}/facts/random/", params=params)
-                if resp.status_code == 200:
-                    try:
-                        resp_data = resp.json()
-                    except Exception:
-                        st.error(f"Error: Status {resp.status_code}, Response: {resp.text}")
-                        return
-                    if resp_data.get("Success"):
-                        fact = resp_data["Fact"]
-                        st.info(fact["fact_text"])
+        filtered_facts = [f for f in facts if f["category"] == selected_category]
+        for fact in filtered_facts:
+            st.write(fact["fact_text"])
+            if st.button("Add to Favorites", key=f"fav_{fact['id']}"):
+                payload = {"user_id": user_id, "fact_id": fact["id"]}
+                try:
+                    res = requests.post(f"{BASE_URL}/favorites/add/", json=payload)
+                    res_data = res.json()
+                    if res_data.get("Success"):
+                        st.success(res_data.get("Message", "Added to favorites!"))
                     else:
-                        st.warning(resp_data.get("Message", "No fun fact available for this category."))
-                else:
-                    st.error(f"Failed to fetch fun fact. Status: {resp.status_code} Response: {resp.text}")
-            except Exception as e:
-                st.error(f"Error fetching fun fact: {e}")
+                        st.error(res_data.get("Message", "Failed to add to favorites"))
+                except Exception as e:
+                    st.error(f"Error adding to favorites: {e}")
     else:
         st.warning("No categories found. Add some facts first.")
 
+# ----------------- Add Fun Fact -----------------
 def show_add_fact():
     st.header("Share a New Fun Fact")
     category = st.text_input("Category", key="addf_cat")
@@ -139,6 +123,23 @@ def show_add_fact():
             except Exception as e:
                 st.error(f"Error adding fun fact: {e}")
 
+# ----------------- Favorites -----------------
+def show_favorites():
+    st.header("⭐ My Favorite Fun Facts")
+    user_id = st.session_state.get("user_id")
+    try:
+        res = requests.get(f"{BASE_URL}/favorites/{user_id}")
+        fav_data = res.json()
+        favorites = fav_data.get("favorites", [])
+        if not favorites:
+            st.info("You have no favorite facts yet.")
+        else:
+            for fact in favorites:
+                st.write(f"- ({fact['category']}) {fact['fact_text']}")
+    except Exception as e:
+        st.error(f"Error fetching favorites: {e}")
+
+# ----------------- Main -----------------
 if 'page' not in st.session_state:
     st.session_state['page'] = "Home"
 
@@ -151,9 +152,10 @@ if 'user_id' not in st.session_state:
         show_home()
 else:
     show_logout()
-    menu = ["Discover Fun Facts", "Add Fun Fact"]  # Favorites removed
+    menu = ["Discover Fun Facts", "Add Fun Fact", "My Favorites"]
     if 'page' not in st.session_state or st.session_state['page'] not in menu:
         st.session_state['page'] = "Discover Fun Facts"
+
     page = st.sidebar.selectbox("Menu", menu, index=menu.index(st.session_state['page']))
     st.session_state['page'] = page
 
@@ -161,3 +163,5 @@ else:
         show_discover()
     elif st.session_state['page'] == "Add Fun Fact":
         show_add_fact()
+    elif st.session_state['page'] == "My Favorites":
+        show_favorites()

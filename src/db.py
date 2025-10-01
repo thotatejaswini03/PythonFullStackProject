@@ -60,3 +60,20 @@ def get_random_fact(category=None):
     if category: q = q.eq("category", category)
     facts = q.execute().data
     return random.choice(facts) if facts else None
+
+# ---------------- FAVORITES ----------------
+def add_favorite(user_id, fact_id):
+    # Check if already favorited
+    exists = supabase.table("user_favorites").select("*") \
+        .eq("user_id", user_id).eq("fact_id", fact_id).execute().data
+    if exists:
+        return None
+    return supabase.table("user_favorites").insert({
+        "user_id": user_id,
+        "fact_id": fact_id
+    }).execute().data
+
+def get_user_favorites(user_id):
+    res = supabase.table("user_favorites").select("fact_id, fun_facts(*)") \
+        .eq("user_id", user_id).execute().data
+    return res
