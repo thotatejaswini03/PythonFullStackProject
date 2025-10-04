@@ -1,9 +1,9 @@
-# api/main.py
-
 from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel
 from src.logic import UserManager, FactManager
 from src.db import supabase
+import requests
+import os
 
 app = FastAPI(title="Fun Facts Generator API", version="1.0")
 
@@ -102,6 +102,31 @@ def random_fact(category: str = None):
     if result.get("Success"):
         return result
     raise HTTPException(status_code=404, detail=result.get("Message"))
+
+# -------------------- Generate Fact via API Ninjas --------------------
+API_NINJAS_KEY = os.getenv("API_NINJAS_KEY")
+API_NINJAS_URL = "https://api.api-ninjas.com/v1/facts"
+
+@app.post("/facts/generate/")
+def generate_fact(payload: dict = Body(...)):
+    user_id = payload.get("user_id")
+    # Generate fact using API Ninjas
+    import requests, os
+    API_NINJAS_KEY = os.getenv("API_NINJAS_KEY")
+    API_NINJAS_URL = "https://api.api-ninjas.com/v1/facts"
+
+    headers = {"X-Api-Key": API_NINJAS_KEY}
+    res = requests.get(API_NINJAS_URL, headers=headers)
+    data = res.json()
+    fact_text = data[0]["fact"] if data else None
+    if not fact_text:
+        raise HTTPException(status_code=500, detail="Failed to fetch fact")
+
+    # Save fact to database with category "Random Fun Fact"
+    result = fact_manager.add_fact(fact_text, "Random Fun Fact", user_id)
+    if result.get("Success"):
+        return {"Success": True, "fact": fact_text}
+    raise HTTPException(status_code=500, detail="Failed to insert fact into DB")
 
 # -------------------- Favorites Endpoints --------------------
 @app.post("/favorites/add/")

@@ -71,8 +71,10 @@ def show_logout():
 
 # ----------------- Discover Facts -----------------
 def show_discover():
-    st.header(f"Discover Fun Facts - Welcome, {st.session_state.get('username','User')}!")
+    st.header(f"🌍 Discover Fun Facts - Welcome, {st.session_state.get('username','User')}!")
     user_id = st.session_state.get("user_id")
+    
+    # Fetch existing facts
     try:
         res = requests.get(f"{BASE_URL}/facts/")
         facts = res.json().get("data", [])
@@ -82,11 +84,13 @@ def show_discover():
 
     categories = sorted(list(set([fact["category"] for fact in facts]))) if facts else []
     if categories:
-        selected_category = st.selectbox("Select a category", categories, key="disc_cat")
+        selected_category = st.selectbox("📂 Select a category", categories, key="disc_cat")
         filtered_facts = [f for f in facts if f["category"] == selected_category]
+
+        st.subheader(f"📚 Facts in '{selected_category}'")
         for fact in filtered_facts:
-            st.write(fact["fact_text"])
-            if st.button("Add to Favorites", key=f"fav_{fact['id']}"):
+            st.markdown(f"🧠 {fact['fact_text']}")
+            if st.button("⭐ Add to Favorites", key=f"fav_{fact['id']}"):
                 payload = {"user_id": user_id, "fact_id": fact["id"]}
                 try:
                     res = requests.post(f"{BASE_URL}/favorites/add/", json=payload)
@@ -97,8 +101,23 @@ def show_discover():
                         st.error(res_data.get("Message", "Failed to add to favorites"))
                 except Exception as e:
                     st.error(f"Error adding to favorites: {e}")
-    else:
-        st.warning("No categories found. Add some facts first.")
+
+    # --------- Generate Random Fun Fact (NEW) ---------
+    st.divider()
+    st.subheader("✨ Generate a Random Fun Fact")
+    if st.button("Generate Fact"):
+        try:
+            payload = {"user_id": user_id}
+            res = requests.post(f"{BASE_URL}/facts/generate/", json=payload)
+            data = res.json()
+            if data.get("Success"):
+                st.success(f"🎉 New Fact Added: {data['fact']}")
+            else:
+                st.error("Failed to generate fact.")
+        except Exception as e:
+            st.error(f"Error generating fact: {e}")
+
+
 
 # ----------------- Add Fun Fact -----------------
 def show_add_fact():
