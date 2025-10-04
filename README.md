@@ -6,13 +6,13 @@ The Fun Fact Generator Web App is an interactive platform that delivers random, 
 
 _**Random Fact Generation**: Users can click a button to instantly receive a new fun fact.
 
-_**Categorized Facts**: Facts are organized into categories, making it easier to explore topics of interest.
+_**User Registration & Login**: Secure user authentication for personalized experiences.
 
-_**User Profiles and Favorites**: Users can save their favorite facts to their profile for easy access.
+_**Favorites Management**: Users can save their favorite facts for easy access.
 
-_**Community-driven Content**: Users can submit their own fun facts, allowing the database to grow dynamically.
+_**Category-Based Fact Discovery**: Explore facts by categories such as Science, History, and Technology.
 
-_**Database Integration**: All facts, user data, and favorites are stored securely in a Supabase (PostgreSQL) database.
+_**Share Your Own Facts**: Users can contribute by adding their own fun facts to the platform
 
 ## Project Structure
 
@@ -64,33 +64,37 @@ pip install -r requirements.txt
 - Run this SQL command:
 
 ``` sql
-create table users (
-    id uuid primary key default gen_random_uuid(),
-    username text unique not null,
-    email text unique not null,
-    password_hash text not null,
-    created_at timestamp default now()
+CREATE TABLE usersdata (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    username text UNIQUE NOT NULL,
+    email text UNIQUE NOT NULL,
+    password_hash text NOT NULL,
+    created_at timestamp DEFAULT now()
 );
 
 
-create table fun_facts (
-    id uuid primary key default gen_random_uuid(),
-    category text not null,
-    fact_text text not null,
-    created_by uuid references users(id),
-    created_at timestamp default now()
+CREATE TABLE fun_facts (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    category text NOT NULL,
+    fact_text text NOT NULL,
+    created_by uuid REFERENCES usersdata(id) ON DELETE SET NULL,
+    created_at timestamp DEFAULT now()
 );
 
 
-create table user_favorites (
-    user_id uuid references users(id) on delete cascade,
-    fact_id uuid references fun_facts(id) on delete cascade,
-    primary key(user_id, fact_id),
-    favorited_at timestamp default now()
+
+CREATE TABLE user_favorites (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES usersdata(id) ON DELETE CASCADE,
+    fact_id uuid NOT NULL REFERENCES fun_facts(id) ON DELETE CASCADE,
+    favorited_at timestamp DEFAULT now(),
+    UNIQUE(user_id, fact_id)
 );
+
+ALTER TABLE fun_facts ADD COLUMN source TEXT DEFAULT 'manual';
 
 ```
-3. **Get Your Credentials:
+### 3. **Get Your Credentials**
 
 ### 4. Configure Environment Variables
 
@@ -120,6 +124,29 @@ python main.py
 The API will be available at `http://localhost:8000`
 
 ## How to use
+**Register / Login**
+
+Open the Streamlit app (http://localhost:8501)
+
+Click Register to create a new account or Login if you already have one.
+
+**Discover Fun Facts**
+
+Browse fun facts by category.
+
+Click Add to Favorites to save interesting facts.
+
+Click Generate Fact to fetch a random fact using API Ninjas. It will automatically be saved in the database with category “Random Fun Fact”.
+
+**Add Fun Facts**
+
+Use the Add Fun Fact page to contribute your own facts with a category.
+
+The fact is stored in the Supabase database.
+
+**Favorites**
+
+Go to My Favorites to view all saved fun facts.
 
 ## Technical Details
 
@@ -132,13 +159,96 @@ _ **Language**: Python 3.8+
 
 ### Key Components
 
-1. **`src/db.py`**: Database operations-Handles all CRUD operations with Supabase
+1._**src/db.py**: Database operations – Handles all CRUD operations with Supabase (users, fun facts, favorites).
 
-2. **`src/logic.py`**: Business logic -Task validation and processing
+2._**src/logic.py**: Business logic – Handles validation, password hashing, and processing before interacting with the database.
+
+3._**api/main.py**: API endpoints – Defines all REST API routes for user authentication, CRUD operations for facts, favorites, and random fact generation via API Ninjas.
+
+4._**app.py**: Frontend – Streamlit app handling the user interface, pages for registration, login, discovering facts, adding facts, generating random facts, and viewing favorites.
+
+5._**.env**: Environment variables – Stores Supabase credentials and API keys securely.
+
+6._**requirements.txt**: Dependencies – Lists all Python libraries needed for backend and frontend.
+
+7._**README.md**: Project documentation – Explains setup, usage, technical details, technologies used, and key components.
 
 ## Troubleshooting
 
+
+If you face problems while running the project, here are practical solutions based on my experience:
+
+1.**FastAPI backend not running or connection refused**
+
+Cause: Backend is not started or running on a different port.
+
+Solution: Start the backend using:
+
+uvicorn api.main:app --reload --port 8000
+
+
+Ensure the URL in BASE_URL in app.py matches (http://localhost:8000).
+
+2.**Environment variables not loaded properly**
+
+Cause: .env file missing or keys incorrect.
+
+Solution: Check that .env contains:
+
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+API_NINJAS_KEY=your_api_ninjas_key
+
+
+Then restart the backend.
+
+3.**API-Ninjas fact generation fails**
+
+Cause: Invalid API key or network issues.
+
+Solution: Make sure API_NINJAS_KEY is valid and has not exceeded rate limits.
+
+4.**Facts not displayed on Streamlit**
+
+Cause: Backend API not reachable or empty database.
+
+Solution: Ensure the backend is running and fun_facts table in Supabase has data.
+
+5.**Login fails even with correct credentials**
+
+Cause: Password mismatch due to hashing issues.
+
+Solution: Make sure passwords are hashed when registering and check that login verifies with bcrypt.
+
+6.**Favorites not working**
+
+Cause: Backend not storing user_favorites correctly or duplicate entries.
+
+Solution: Favorites are now checked for duplicates; clear the table in Supabase if corrupted and retry.
+
 ## Common Issues
+
+**No categories appear in Discover Facts dropdown**
+
+    Only existing fact categories are shown. Add some facts first for categories to appear.
+
+**Generate Fact does not create category-based fact**
+
+    We decided to generate only “Random Fun Fact” category to simplify usage. Category field removed in Streamlit UI.
+
+**Supabase insert/update returns None**
+
+    Cause: Empty response from Supabase insert/update.
+
+    Solution: Ensure res.data[0] exists after insertion. Tables must have correct columns.
+
+**Streamlit UI freezes or shows empty page**
+
+    Clear Streamlit session state and cache:
+
+    streamlit cache clear
+
+    Then restart Streamlit.
 
 ## Future Enhancements
 
